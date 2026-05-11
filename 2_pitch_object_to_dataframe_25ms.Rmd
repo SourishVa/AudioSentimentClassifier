@@ -1,0 +1,81 @@
+---
+title: "pitch_object_to_dataframe"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+This R script processes Praat Pitch object files and extracts acoustic data, including time, fundamental frequency (F0), candidate strength, and intensity. It reconstructs time values from header information and converts these into a structured data frame. The script then saves each data frame as an .rds file for further analysis. 
+
+```{r}
+# Load necessary libraries
+library(PraatR)
+library(dplyr)
+library(purrr)
+
+# Define input and output directories
+input_dir <- "C:/Users/souri/Documents/Data/ProsodicContours/gender_pitch_files"
+output_dir <- "C:/Users/souri/Documents/Data/ProsodicContours/gender_dataframes"
+
+# Function to convert Pitch object to a data frame
+to_dataframe <- function(fname, input_dir, output_dir) {
+  
+  # Read in the Pitch object file
+  FullText <- readLines(paste(input_dir, fname, sep="/"))
+
+  # Convenience function for extracting lines with specific text
+  Extract <- function(text, target) { 
+    as.numeric(gsub(grep(text, pattern = target, fixed = TRUE, value = TRUE), pattern = target, replacement = "")) 
+  }
+
+  # Extract header information to reconstruct the time domain
+  FirstFrame <- Extract(FullText, "x1 = ")  # First frame location
+  nTimeSteps <- Extract(FullText, "nx = ")  # Number of frames
+  TimeStepSize <- Extract(FullText, "dx = ")  # Time step size
+  
+  # Create vector of time steps
+  TimeValues <- FirstFrame + (1:nTimeSteps) * TimeStepSize
+
+  # Extract intensity values
+  IntensityValues <- Extract(FullText, "intensity = ")
+
+  # Locate candidate lines and extract F0 values
+  FirstCandidateLines <- grep("candidates \\[1\\]:", FullText)
+  FrequencyLines <- FullText[FirstCandidateLines + 1]
+  F0Values <- as.numeric(substring(FrequencyLines, first = 29, last = nchar(FrequencyLines)))
+  F0Values[F0Values == 0] <- NA  # Replace 0 with NA for voiceless frames
+
+  # Extract strength values
+  StrengthLines <- FullText[FirstCandidateLines + 2]
+  StrengthValues <- as.numeric(substring(StrengthLines, first = 28, last = nchar(FrequencyLines)))
+  StrengthValues[StrengthValues == 0] <- NA
+
+  # Assemble all information into a data frame
+  RichData <- data.frame(Time = TimeValues, F0 = F0Values, Strength = StrengthValues, Intensity = IntensityValues)
+  
+  # Add step index and sentence name
+  RichData$step <- 1:nrow(RichData)
+  RichData$sentence <- gsub("\\.Pitch$", "", fname)
+  
+  # Save the resulting data frame as an .rds file
+  saveRDS(RichData, file = paste(output_dir, gsub("\\.Pitch$", ".rds", fname), sep="/"))
+}
+
+# Get the list of Pitch object files
+file_list <- list.files(path = input_dir, full.names = TRUE, pattern = "\\.Pitch$")
+file_names <- basename(file_list)
+
+# Apply the function to each file
+map(file_names, to_dataframe, input_dir = input_dir, output_dir = output_dir)
+
+
+# Update 'input_dir' and 'output_dir' with appropriate paths.
+
+```
+
+
+
+

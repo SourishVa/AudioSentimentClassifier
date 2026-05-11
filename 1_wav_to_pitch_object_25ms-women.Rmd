@@ -1,0 +1,50 @@
+---
+title: "convert_pitch_object_10ms"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# CONTRASTIVE stress files WOMEN only
+This R script processes a list of WOMEN'S .wav audio files to extract pitch data using Praat. It takes audio files from a specified input directory, converts each file into a Praat pitch object, and saves the output in a specified output directory. The script utilizes the PraatR, dplyr, and purrr libraries to automate the batch processing of files, ensuring that each .wav file is transformed into a corresponding .Pitch file for further acoustic analysis.
+
+```{r}
+# Load necessary libraries
+library(PraatR)
+library(dplyr)
+library(purrr)
+
+# Define input and output directories
+input_dir <- "D:/IntroDataScienceProject/crema-d-mirror/MFA/Men"
+output_dir <- "D:/IntroDataScienceProject/crema-d-mirror/MenPitchFiles"
+
+# Get list of .wav files from the input directory
+file_list <- list.files(path = input_dir, pattern = "\\.wav$", full.names = TRUE)
+
+# Extract file names  
+file_names <- basename(file_list)
+  
+# Function to convert wav file to pitch object
+to_pitch_object <- function(fname, input_dir, output_dir) {
+  input_file <- file.path(input_dir, fname)
+  output_file <- file.path(output_dir, sub(".wav$", ".Pitch", fname))
+  
+  # Praat command to convert wav to pitch object
+  #80 to 450 is for females
+  #30 to 400 is for males
+  praat("To Pitch...", arguments = list(0.025, 30, 400), 
+        input = input_file, 
+        output = output_file, 
+        overwrite = TRUE)
+}
+
+# Apply the function to all files
+map(file_names, to_pitch_object, input_dir = input_dir, output_dir = output_dir)
+
+
+# Update the 'input_dir' and 'output_dir' variables to point to the desired directories.
+
+```
+

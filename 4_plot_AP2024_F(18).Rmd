@@ -1,0 +1,75 @@
+---
+title: "4_plot_AP2024_F(18)"
+output: html_document
+date: "2024-02-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(rPraat)
+library(stringr)
+
+setwd("D:/IntroDataScienceProject/crema-d-mirror")
+# Load the combined pitch data
+ctr <- readRDS("all_pitch(63).rds")
+
+#Add actorID to groupBy in ctr
+ctr <- ctr |>
+  mutate(
+    ActorID = as.numeric(str_split_i(sentence, "_", 1)), #Since CSV has it as doubles
+    SentType = str_split_i(sentence, "_", 2),
+    EmotionType = str_split_i(sentence, "_", 3)
+  ) |>
+  ungroup()
+# Load metadata dataset
+d_set <- read_csv("VideoDemographics.csv")
+
+# Merge the metadata with the pitch data
+ctr <- left_join(ctr, d_set, by = "ActorID")
+ctr <- ctr|>
+  filter(SentType == "ITS")
+
+
+# Add a log-transformed F0 column
+reference_tone <- 440  # Set reference tone for calculating semitones
+ctr <- ctr %>% 
+  mutate(log_F0 = 12 * log2(F0 / reference_tone))
+
+# Normalize logF0 by subtracting the mean logF0 for each participant
+ctr <- ctr %>% 
+  group_by(ActorID) %>%  
+  mutate(norm_F0 = log_F0 - mean(log_F0,na.rm=TRUE)) %>% 
+  ungroup()
+
+# Create a mean time for each step
+ctr <- ctr %>% 
+  group_by(step) %>% 
+  mutate(mean_time = mean(Time)) %>% 
+  ungroup()
+
+# Create a new plotting dataframe, grouping by mean_time and tag_1 (contains variable/labels of interest)
+ctr_plot <- ctr %>% 
+  group_by(mean_time, EmotionType) %>% 
+  summarise(F0 = mean(norm_F0, na.rm = TRUE),
+            se_F0 = sd(norm_F0,na.rm=TRUE)/sqrt(n()),
+            n=n())
+
+# Create the F0 contour plot with confidence intervals
+p <- ggplot(data = ctr_plot, mapping = aes(x = mean_time, y = F0, color=EmotionType )) +
+  geom_line(size=.7) +  # Draw the contour lines
+  geom_ribbon(aes(ymin = F0 - se_F0, ymax = F0 + se_F0, fill = EmotionType, color = NULL, alpha = 0.2)) +  # Add confidence intervals
+  guides(alpha = "none") +  # Remove alpha from the legend
+  ylab("Average Normalized Semitones") +  # Y-axis label
+  xlab("Seconds") +  # X-axis label
+  labs(title = "Sentence: I think I've seen this before")+  # Plot title paste0(FilterType," - ",participantType," participants (n = ",length(unique(ctr$New_Name)),")")
+  scale_x_continuous(limits = c(0, 2.5))   # X-axis limits
+  # scale_y_continuous(limits = c(-6, 6))  # Y-axis limits
+
+p
+```
